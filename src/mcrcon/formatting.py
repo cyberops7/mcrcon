@@ -58,6 +58,10 @@ def convert_formatting(text: str) -> str:
     converted to 24-bit ANSI color sequences. Codes without a terminal
     equivalent (§k) are stripped.
 
+    In Minecraft, color codes reset all formatting (bold, italic, etc.)
+    before applying the color. This behavior is preserved by emitting an
+    ANSI reset before color codes.
+
     A reset sequence is appended at the end if any formatting was applied,
     ensuring the terminal state is left clean.
 
@@ -81,7 +85,8 @@ def convert_formatting(text: str) -> str:
                 g = int(hex_chars[2] + hex_chars[3], 16)
                 b = int(hex_chars[4] + hex_chars[5], 16)
                 has_formatting = True
-                return f"\033[38;2;{r};{g};{b}m"
+                # Reset formatting before applying color (Minecraft behavior)
+                return f"\033[0m\033[38;2;{r};{g};{b}m"
             return ""
 
         # Single-char code: §X
@@ -89,6 +94,9 @@ def convert_formatting(text: str) -> str:
         ansi = _MC_TO_ANSI.get(char)
         if ansi is not None:
             has_formatting = True
+            # Color codes (0-9, a-f) reset formatting in Minecraft
+            if char in "0123456789abcdef":
+                return f"\033[0m{ansi}"
             return ansi
         return ""
 
@@ -98,17 +106,20 @@ def convert_formatting(text: str) -> str:
     return result
 
 
-def format_response(text: str, *, color: bool = True) -> str:
+def format_response(text: str, *, color: bool = True, raw: bool = False) -> str:
     """Format a server response for terminal display.
 
     Args:
         text: Raw text from the Minecraft server.
         color: If True, convert formatting codes to ANSI sequences.
             If False, strip all formatting codes.
+        raw: If True, return raw text unchanged (overrides color setting).
 
     Returns:
         Formatted text ready for printing.
     """
+    if raw:
+        return text
     if color:
         return convert_formatting(text)
     return strip_formatting(text)

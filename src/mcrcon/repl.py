@@ -48,6 +48,7 @@ def run_repl(  # noqa: PLR0913
     port: int,
     timeout: float = 10.0,
     color: bool = True,
+    raw: bool = False,
 ) -> None:
     """Run the interactive REPL loop.
 
@@ -58,6 +59,7 @@ def run_repl(  # noqa: PLR0913
         port: Server port, used for the background refresh connection.
         timeout: Socket timeout for the background connection.
         color: If True, convert formatting codes to ANSI. If False, strip them.
+        raw: If True, show raw output with formatting codes visible.
     """
     ensure_config_dir()
 
@@ -92,22 +94,23 @@ def run_repl(  # noqa: PLR0913
                 _start_background_refresh(server, completer)
             continue
 
-        _execute_command(client, text, server, completer, color=color)
+        _execute_command(client, text, server, completer, color=color, raw=raw)
 
 
-def _execute_command(
+def _execute_command(  # noqa: PLR0913
     client: RconClient,
     text: str,
     server: _ServerInfo,
     completer: MinecraftCompleter,
     *,
     color: bool = True,
+    raw: bool = False,
 ) -> None:
     """Execute a command, handling connection errors with auto-reconnect."""
     try:
         response = client.command(text)
         if response:
-            print(format_response(response, color=color))
+            print(format_response(response, color=color, raw=raw))
     except RconConnectionError:
         print("Connection lost. Attempting to reconnect...", file=sys.stderr)
         if _reconnect(client, server.password):
@@ -115,7 +118,7 @@ def _execute_command(
             try:
                 response = client.command(text)
                 if response:
-                    print(format_response(response, color=color))
+                    print(format_response(response, color=color, raw=raw))
             except RconConnectionError:
                 print(
                     "Failed to execute command after reconnection.",

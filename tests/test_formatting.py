@@ -72,7 +72,7 @@ def test_strip_lowercase_hex_in_rgb():
 def test_convert_legacy_color():
     """Convert a legacy color code to the corresponding ANSI sequence."""
     result = convert_formatting("§aGreen Text")
-    assert result == "\033[92mGreen Text\033[0m"
+    assert result == "\033[0m\033[92mGreen Text\033[0m"
 
 
 def test_convert_bold():
@@ -108,19 +108,22 @@ def test_convert_reset_in_middle():
 def test_convert_rgb_color():
     """Convert RGB color codes to 24-bit ANSI sequences."""
     result = convert_formatting("§x§F§F§0§0§0§0Red")
-    assert result == "\033[38;2;255;0;0mRed\033[0m"
+    assert result == "\033[0m\033[38;2;255;0;0mRed\033[0m"
 
 
 def test_convert_rgb_lowercase():
     """RGB codes work with lowercase hex digits."""
     result = convert_formatting("§x§4§4§8§8§f§fBlue")
-    assert result == "\033[38;2;68;136;255mBlue\033[0m"
+    assert result == "\033[0m\033[38;2;68;136;255mBlue\033[0m"
 
 
 def test_convert_mixed_rgb_and_legacy():
     """Mixed RGB and legacy codes are both converted."""
     result = convert_formatting("§x§4§4§8§8§F§F§lBlueMap §fStatus")
-    assert result == "\033[38;2;68;136;255m\033[1mBlueMap \033[97mStatus\033[0m"
+    assert (
+        result
+        == "\033[0m\033[38;2;68;136;255m\033[1mBlueMap \033[0m\033[97mStatus\033[0m"
+    )
 
 
 def test_convert_obfuscated_stripped():
@@ -162,7 +165,9 @@ def test_convert_case_insensitive_codes():
 def test_convert_multiple_colors():
     """Multiple color switches in a single string."""
     result = convert_formatting("§cRed §aGreen §9Blue")
-    assert result == "\033[91mRed \033[92mGreen \033[94mBlue\033[0m"
+    assert (
+        result == "\033[0m\033[91mRed \033[0m\033[92mGreen \033[0m\033[94mBlue\033[0m"
+    )
 
 
 def test_convert_all_legacy_colors():
@@ -187,7 +192,17 @@ def test_convert_all_legacy_colors():
     }
     for code, ansi in expected.items():
         result = convert_formatting(f"§{code}X")
-        assert result == f"{ansi}X\033[0m", f"Failed for §{code}"
+        assert result == f"\033[0m{ansi}X\033[0m", f"Failed for §{code}"
+
+
+def test_convert_color_resets_strikethrough():
+    """Color codes reset formatting like strikethrough (Minecraft behavior)."""
+    # Simulates: cyan strikethrough "====", then green "Server Uptime:"
+    # (no strikethrough on the second line)
+    result = convert_formatting("§b§m====\n§aServer Uptime:")
+    # After §b§m, strikethrough is active
+    # When §a appears, it should reset (clear strikethrough) then apply green
+    assert result == "\033[0m\033[96m\033[9m====\n\033[0m\033[92mServer Uptime:\033[0m"
 
 
 # --- Tests for format_response ---

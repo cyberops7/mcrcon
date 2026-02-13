@@ -14,7 +14,7 @@ Interactive Minecraft RCON CLI client with dynamic command autocomplete and 1Pas
 
 ## Installation
 
-Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv).
+Requires Python 3.14+ and [uv](https://github.com/astral-sh/uv).
 
 ```bash
 git clone <repo-url>
@@ -102,18 +102,19 @@ uv run mcrcon mc-1 -c "time set day"
 ### CLI Reference
 
 ```
-mcrcon [server] [-p PASSWORD] [-c COMMAND] [--timeout SECONDS] [--no-color] [--debug] [--build-cache]
+mcrcon [server] [-p PASSWORD] [-c COMMAND] [--timeout SECONDS] [--no-color] [--raw] [--debug] [--build-cache]
 ```
 
-| Flag               | Description                                                 |
-|--------------------|-------------------------------------------------------------|
-| `server`           | Server name (from config) or `host:port`                    |
-| `-p`, `--password` | RCON password (overrides 1Password lookup)                  |
-| `-c`, `--command`  | Execute a single command and exit                           |
-| `--timeout`        | Socket timeout in seconds (default: 10)                     |
-| `--no-color`       | Strip formatting codes instead of converting to ANSI colors |
-| `--debug`          | Enable debug logging to stderr                              |
-| `--build-cache`    | Fetch help data, save to cache, and exit                    |
+| Flag               | Description                                                   |
+|--------------------|---------------------------------------------------------------|
+| `server`           | Server name (from config) or `host:port`                      |
+| `-p`, `--password` | RCON password (overrides 1Password lookup)                    |
+| `-c`, `--command`  | Execute a single command and exit                             |
+| `--timeout`        | Socket timeout in seconds (default: 10)                       |
+| `--no-color`       | Strip formatting codes instead of converting to ANSI colors   |
+| `--raw`            | Show raw output with formatting codes visible (for debugging) |
+| `--debug`          | Enable debug logging to stderr                                |
+| `--build-cache`    | Fetch help data, save to cache, and exit                      |
 
 ### Tab Completion
 

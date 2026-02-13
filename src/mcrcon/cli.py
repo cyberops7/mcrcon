@@ -59,6 +59,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Strip formatting codes instead of converting to ANSI colors",
     )
     parser.add_argument(
+        "--raw",
+        action="store_true",
+        default=False,
+        help="Show raw output with formatting codes visible (for debugging)",
+    )
+    parser.add_argument(
         "--debug",
         action="store_true",
         default=False,
@@ -162,6 +168,9 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
+    if args.no_color and args.raw:
+        parser.error("--no-color and --raw are mutually exclusive")
+
     if args.debug:
         logging.basicConfig(
             level=logging.DEBUG,
@@ -210,7 +219,7 @@ def main() -> None:
         try:
             response = client.command(args.command)
             if response:
-                print(format_response(response, color=not args.no_color))
+                print(format_response(response, color=not args.no_color, raw=args.raw))
         finally:
             client.close()
         return
@@ -226,6 +235,7 @@ def main() -> None:
             port=server.port,
             timeout=args.timeout,
             color=not args.no_color,
+            raw=args.raw,
         )
     finally:
         client.close()
