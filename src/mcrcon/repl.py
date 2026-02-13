@@ -13,17 +13,19 @@ from mcrcon.client import ConnectionError as RconConnectionError
 from mcrcon.client import RconClient
 from mcrcon.completer import MinecraftCompleter, build_completer
 from mcrcon.config import HISTORY_FILE, ensure_config_dir
+from mcrcon.formatting import format_response
 from mcrcon.help_parser import format_help_response, parse_commands
 
 MAX_RECONNECT_ATTEMPTS = 3
 
 
-def run_repl(client: RconClient, password: str) -> None:
+def run_repl(client: RconClient, password: str, *, color: bool = True) -> None:
     """Run the interactive REPL loop.
 
     Args:
         client: An already-connected and authenticated RconClient.
         password: The RCON password, stored for reconnection attempts.
+        color: If True, convert formatting codes to ANSI. If False, strip them.
     """
     ensure_config_dir()
 
@@ -59,7 +61,7 @@ def run_repl(client: RconClient, password: str) -> None:
                     session.completer = new_completer
             continue
 
-        _execute_command(client, password, text, session)
+        _execute_command(client, password, text, session, color=color)
 
 
 def _execute_command(
@@ -67,12 +69,14 @@ def _execute_command(
     password: str,
     text: str,
     session: PromptSession[str],
+    *,
+    color: bool = True,
 ) -> None:
     """Execute a command, handling connection errors with auto-reconnect."""
     try:
         response = client.command(text)
         if response:
-            print(response)
+            print(format_response(response, color=color))
     except RconConnectionError:
         print("Connection lost. Attempting to reconnect...", file=sys.stderr)
         if _reconnect(client, password):
@@ -82,7 +86,7 @@ def _execute_command(
             try:
                 response = client.command(text)
                 if response:
-                    print(response)
+                    print(format_response(response, color=color))
             except RconConnectionError:
                 print(
                     "Failed to execute command after reconnection.",
@@ -101,8 +105,7 @@ def _build_completer_from_server(client: RconClient) -> MinecraftCompleter | Non
                 return build_completer(commands)
     except (ConnectionError, TimeoutError):
         print(
-            "Warning: could not fetch help from server, "
-            "autocomplete will be limited.",
+            "Warning: could not fetch help from server, autocomplete will be limited.",
             file=sys.stderr,
         )
     return None

@@ -18,7 +18,8 @@ class TestLoadConfig:
 
     def test_load_full_config(self, tmp_path: Path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text(dedent("""\
+        config_file.write_text(
+            dedent("""\
             [defaults]
             server = "test-server"
 
@@ -31,7 +32,8 @@ class TestLoadConfig:
             name = "Test Server"
             host = "192.168.1.1"
             port = 25575
-        """))
+        """)
+        )
 
         config = load_config(config_file)
 
@@ -44,7 +46,8 @@ class TestLoadConfig:
 
     def test_per_server_credentials(self, tmp_path: Path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text(dedent("""\
+        config_file.write_text(
+            dedent("""\
             [defaults.credentials]
             vault = "Default"
             item = "default-item"
@@ -62,7 +65,8 @@ class TestLoadConfig:
             vault = "Custom"
             item = "custom-item"
             field = "CUSTOM_PASS"
-        """))
+        """)
+        )
 
         config = load_config(config_file)
 
@@ -75,20 +79,24 @@ class TestLoadConfig:
 
     def test_default_port(self, tmp_path: Path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text(dedent("""\
+        config_file.write_text(
+            dedent("""\
             [servers.s1]
             host = "10.0.0.1"
-        """))
+        """)
+        )
 
         config = load_config(config_file)
         assert config.servers["s1"].port == 25575
 
     def test_name_defaults_to_key(self, tmp_path: Path):
         config_file = tmp_path / "config.toml"
-        config_file.write_text(dedent("""\
+        config_file.write_text(
+            dedent("""\
             [servers.myserver]
             host = "10.0.0.1"
-        """))
+        """)
+        )
 
         config = load_config(config_file)
         assert config.servers["myserver"].name == "myserver"

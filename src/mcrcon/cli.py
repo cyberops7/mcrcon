@@ -19,6 +19,7 @@ from mcrcon.config import (
     load_config,
 )
 from mcrcon.credentials import CredentialError, get_rcon_password
+from mcrcon.formatting import format_response
 from mcrcon.repl import run_repl
 
 
@@ -48,6 +49,12 @@ def build_parser() -> argparse.ArgumentParser:
         type=float,
         default=10.0,
         help="Socket timeout in seconds (default: 10)",
+    )
+    parser.add_argument(
+        "--no-color",
+        action="store_true",
+        default=False,
+        help="Strip formatting codes instead of converting to ANSI colors",
     )
     return parser
 
@@ -165,7 +172,7 @@ def main() -> None:
         try:
             response = client.command(args.command)
             if response:
-                print(response)
+                print(format_response(response, color=not args.no_color))
         finally:
             client.close()
         return
@@ -174,6 +181,6 @@ def main() -> None:
     print(f"Connected to {display_name} ({server.host}:{server.port})")
     print("Type 'help' for server commands, Ctrl+D or 'exit' to quit.\n")
     try:
-        run_repl(client, password)
+        run_repl(client, password, color=not args.no_color)
     finally:
         client.close()

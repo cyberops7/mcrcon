@@ -66,6 +66,16 @@ Integrates with 1Password CLI to securely retrieve RCON passwords:
 - **Timeout**: 30-second timeout for credential retrieval
 - **Validation**: Ensures retrieved password is non-empty
 
+### Formatting (`formatting.py`)
+Handles Minecraft color and formatting codes in server responses:
+- **Default behavior**: Converts formatting codes to ANSI terminal escape sequences (colors, bold, italic, underline, strikethrough)
+- **RGB support**: 24-bit RGB colors (`§x§R§R§G§G§B§B`) are converted using `\033[38;2;r;g;bm` sequences
+- **Legacy colors**: `§0-f` mapped to standard/bright ANSI foreground colors
+- **Obfuscated (§k)**: Stripped silently (no terminal equivalent)
+- **Reset safety**: A trailing ANSI reset is appended whenever formatting codes are present
+- **No-color mode**: `--no-color` CLI flag falls back to stripping all codes
+- **Key functions**: `convert_formatting()` for ANSI output, `strip_formatting()` for plain text, `format_response()` dispatches based on `color` flag
+
 ## Testing Architecture
 
 ### Test Structure
@@ -94,3 +104,4 @@ Test files have relaxed rules (annotations, magic values, asserts, etc.).
 - **CLI entry point**: `mcrcon.cli:main` (defined in `pyproject.toml`)
 - **Main flow**: `cli.py` → `client.py` → `repl.py` for interactive mode
 - **Non-interactive mode**: Use `-c` flag to run a single command and exit
+- **Color control**: Use `--no-color` to disable ANSI color output

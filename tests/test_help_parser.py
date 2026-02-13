@@ -94,9 +94,7 @@ class TestParseCommands:
         assert "seed" in commands
 
     def test_mixed_args(self):
-        commands = parse_commands(
-            "/advancement (grant|revoke) <targets> <advancement>"
-        )
+        commands = parse_commands("/advancement (grant|revoke) <targets> <advancement>")
 
         args = commands["advancement"]
         choices = [a for a in args if isinstance(a, RequiredChoice)]

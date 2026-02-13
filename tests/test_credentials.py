@@ -66,9 +66,10 @@ class TestGetRconPassword:
 
     def test_custom_credentials(self):
         custom = CredentialConfig(vault="Personal", item="other-mc", field="pass")
-        with patch(
-            "mcrcon.credentials.shutil.which", return_value="/usr/local/bin/op"
-        ), patch("mcrcon.credentials.subprocess.run") as mock_run:
+        with (
+            patch("mcrcon.credentials.shutil.which", return_value="/usr/local/bin/op"),
+            patch("mcrcon.credentials.subprocess.run") as mock_run,
+        ):
             mock_run.return_value.stdout = "custom-pass\n"
             mock_run.return_value.returncode = 0
 

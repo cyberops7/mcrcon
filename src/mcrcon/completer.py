@@ -29,7 +29,9 @@ class MinecraftCompleter(Completer):
         self.commands = commands
 
     def get_completions(
-        self, document: Document, complete_event: CompleteEvent  # noqa: ARG002
+        self,
+        document: Document,
+        complete_event: CompleteEvent,  # noqa: ARG002
     ) -> Iterable[Completion]:
         """Yield completions based on the current input."""
         text = document.text_before_cursor
@@ -77,9 +79,7 @@ class MinecraftCompleter(Completer):
             if cmd.startswith(prefix_lower):
                 yield Completion(cmd, start_position=-len(prefix))
 
-    def _complete_argument(
-        self, arg: Argument, prefix: str
-    ) -> Iterable[Completion]:
+    def _complete_argument(self, arg: Argument, prefix: str) -> Iterable[Completion]:
         """Yield argument completions for choice-type arguments."""
         if isinstance(arg, RequiredChoice | OptionalChoice):
             prefix_lower = prefix.lower()

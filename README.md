@@ -10,6 +10,7 @@ Interactive Minecraft RCON CLI client with dynamic command autocomplete and 1Pas
 - **Auto-reconnection**: Reconnects automatically on connection loss with exponential backoff
 - **Multi-server support**: Configure multiple servers with per-server or shared credentials
 - **Single-command mode**: Execute one-off commands without entering interactive mode
+- **Color output**: Converts Minecraft formatting codes to ANSI terminal colors and styles
 
 ## Installation
 
@@ -97,6 +98,20 @@ Execute a command and exit:
 uv run mcrcon mc-1 -c "list"
 uv run mcrcon mc-1 -c "time set day"
 ```
+
+### CLI Reference
+
+```
+mcrcon [server] [-p PASSWORD] [-c COMMAND] [--timeout SECONDS] [--no-color]
+```
+
+| Flag | Description |
+|------|-------------|
+| `server` | Server name (from config) or `host:port` |
+| `-p`, `--password` | RCON password (overrides 1Password lookup) |
+| `-c`, `--command` | Execute a single command and exit |
+| `--timeout` | Socket timeout in seconds (default: 10) |
+| `--no-color` | Strip formatting codes instead of converting to ANSI colors |
 
 ### Tab Completion
 
