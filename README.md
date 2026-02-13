@@ -1,0 +1,216 @@
+# mcrcon
+
+Interactive Minecraft RCON CLI client with dynamic command autocomplete and 1Password integration.
+
+## Features
+
+- **Dynamic autocomplete**: Queries the server's `help` command to build tab completions for commands and arguments
+- **1Password integration**: Retrieves RCON passwords securely from 1Password CLI
+- **Command history**: Persistent history across sessions
+- **Auto-reconnection**: Reconnects automatically on connection loss with exponential backoff
+- **Multi-server support**: Configure multiple servers with per-server or shared credentials
+- **Single-command mode**: Execute one-off commands without entering interactive mode
+
+## Installation
+
+Requires Python 3.11+ and [uv](https://github.com/astral-sh/uv).
+
+```bash
+git clone <repo-url>
+cd mcrcon
+uv sync
+```
+
+## Configuration
+
+Create `~/.config/mcrcon/config.toml`:
+
+```toml
+[defaults]
+server = "mc-1"
+
+[defaults.credentials]
+vault = "Skynet"
+item = "minecraft"
+field = "RCON_PASSWORD"
+
+[servers.mc-1]
+name = "MC-1 (Java + Bedrock)"
+host = "10.0.0.112"
+port = 25575
+
+[servers.mc-3]
+name = "MC-3 (Java + Bedrock)"
+host = "10.0.0.114"
+port = 25575
+```
+
+### Per-Server Credentials
+
+Override credentials for specific servers:
+
+```toml
+[servers.production]
+name = "Production Server"
+host = "prod.example.com"
+port = 25575
+
+[servers.production.credentials]
+vault = "Production"
+item = "minecraft-prod"
+field = "RCON_PASSWORD"
+```
+
+## Usage
+
+### Interactive Mode
+
+```bash
+# Connect to default server
+uv run mcrcon
+
+# Connect to specific server from config
+uv run mcrcon mc-1
+
+# Connect directly to host:port
+uv run mcrcon 10.0.0.112:25575
+
+# Provide password via CLI (bypasses 1Password)
+uv run mcrcon mc-1 -p mypassword
+```
+
+Once connected, type Minecraft commands:
+
+```
+rcon> list
+There are 3 of a max of 20 players online: Steve, Alex, Notch
+rcon> gamemode creative Steve
+Set Steve's game mode to Creative Mode
+rcon> exit
+```
+
+### Single Command Mode
+
+Execute a command and exit:
+
+```bash
+uv run mcrcon mc-1 -c "list"
+uv run mcrcon mc-1 -c "time set day"
+```
+
+### Tab Completion
+
+The client dynamically builds completions from the server's available commands:
+
+```
+rcon> game<TAB>
+gamemode  gamerule
+
+rcon> gamemode <TAB>
+survival  creative  adventure  spectator
+
+rcon> gamerule doFire<TAB>
+doFireTick
+```
+
+## Local Commands
+
+- `exit` / `quit`: Close the connection and exit
+- `reconnect`: Manually trigger reconnection
+- `Ctrl+D` or `Ctrl+C`: Exit
+
+## 1Password Setup
+
+Install [1Password CLI](https://developer.1password.com/docs/cli/):
+
+```bash
+brew install 1password-cli
+```
+
+Create an RCON password item in 1Password:
+
+```bash
+op item create \
+  --category "API Credential" \
+  --title "minecraft" \
+  --vault Skynet \
+  "password[password]=your-rcon-password" \
+  hostname=minecraft.example.com
+
+# Remove default API Credential fields
+op item edit minecraft 'valid from[delete]' 'expires[delete]'
+```
+
+The field name must match what's configured in `config.toml` (default: `RCON_PASSWORD`).
+
+## Development
+
+### Run Tests
+
+```bash
+uv run pytest
+```
+
+### Linting
+
+```bash
+uv run ruff check src/ tests/
+```
+
+### Project Structure
+
+```
+src/mcrcon/
+├── protocol.py      # RCON wire protocol (packet encode/decode)
+├── client.py        # TCP client with auth and multi-packet support
+├── config.py        # TOML configuration loading
+├── credentials.py   # 1Password CLI integration
+├── help_parser.py   # Parse server help output into command definitions
+├── completer.py     # prompt_toolkit completer from parsed commands
+├── repl.py          # Interactive REPL with history and reconnection
+└── cli.py           # Entry point and argument parsing
+```
+
+## How It Works
+
+1. **Connect & Authenticate**: Establishes TCP connection and authenticates with RCON password
+2. **Fetch Help**: Sends `help` command to server and parses the response
+3. **Build Completer**: Extracts command names and argument structures (required/optional, choices)
+4. **Interactive Loop**: Provides tab completion, history, and command execution
+
+The completer is dynamic, so it automatically supports:
+- Modded servers with custom commands
+- Plugin commands (EssentialsX, WorldEdit, etc.)
+- Different Minecraft versions
+
+## Troubleshooting
+
+### "1Password CLI (op) is not installed"
+
+Install the 1Password CLI:
+
+```bash
+brew install 1password-cli
+```
+
+### "Authentication failed: incorrect RCON password"
+
+Verify the password in 1Password:
+
+```bash
+op item get minecraft --fields label=RCON_PASSWORD --reveal
+```
+
+Ensure `enable-rcon=true` and `rcon.password` are set in `server.properties`.
+
+### Connection Timeout
+
+Check that the server is reachable and RCON port (25575) is open:
+
+```bash
+nc -zv 10.0.0.112 25575
+```
+
+## License
+
+MIT

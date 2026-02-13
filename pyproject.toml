@@ -1,0 +1,68 @@
+[project]
+name = "mcrcon"
+version = "0.1.0"
+description = "Interactive Minecraft RCON CLI client"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "prompt-toolkit>=3.0.50",
+]
+
+[project.scripts]
+mcrcon = "mcrcon.cli:main"
+
+[dependency-groups]
+dev = [
+    "pyrefly>=0.52.0",
+    "pytest>=9.0.2",
+    "ruff>=0.15.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.10.0,<0.11.0"]
+build-backend = "uv_build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+indent-width = 4
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["ALL"]
+ignore = [
+    "COM812",
+    "D",
+    "FBT001",
+    "FBT002",
+    "FIX002",
+    "T201",
+    "TD003",
+    "TRY301",
+]
+fixable = ["ALL"]
+unfixable = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*.py" = [
+    "A004",
+    "ANN",
+    "ERA001",
+    "F401",
+    "PLC0415",
+    "PLR0913",
+    "PLR2004",
+    "PT019",
+    "RUF059",
+    "S101",
+    "SLF001",
+]
+
+[tool.ruff.format]
+indent-style = "space"
+quote-style = "double"
+
+[tool.uv]
+default-groups = ["dev"]
