@@ -9,6 +9,7 @@ from pathlib import Path
 CONFIG_DIR = Path.home() / ".config" / "mcrcon"
 CONFIG_FILE = CONFIG_DIR / "config.toml"
 HISTORY_FILE = CONFIG_DIR / "history"
+CACHE_DIR = CONFIG_DIR / "cache"
 
 
 @dataclass(frozen=True)
@@ -111,5 +112,6 @@ def _default_config() -> AppConfig:
 
 
 def ensure_config_dir() -> None:
-    """Create the config directory if it does not exist."""
+    """Create the config and cache directories if they do not exist."""
     CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)

@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import logging
 import sys
+import threading
 import time
+from dataclasses import dataclass
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
@@ -11,26 +14,55 @@ from prompt_toolkit.history import FileHistory
 
 from mcrcon.client import ConnectionError as RconConnectionError
 from mcrcon.client import RconClient
-from mcrcon.completer import MinecraftCompleter, build_completer
+from mcrcon.completer import MinecraftCompleter
 from mcrcon.config import HISTORY_FILE, ensure_config_dir
 from mcrcon.formatting import format_response
-from mcrcon.help_parser import format_help_response, parse_commands
+from mcrcon.help_fetcher import (
+    fetch_all_help,
+    fetch_player_list,
+    load_cache,
+    save_cache,
+)
+
+log = logging.getLogger(__name__)
 
 MAX_RECONNECT_ATTEMPTS = 3
+_PLAYER_REFRESH_INTERVAL = 60
 
 
-def run_repl(client: RconClient, password: str, *, color: bool = True) -> None:
+@dataclass(frozen=True)
+class _ServerInfo:
+    """Connection details needed to create a background RCON client."""
+
+    host: str
+    port: int
+    password: str
+    timeout: float
+
+
+def run_repl(  # noqa: PLR0913
+    client: RconClient,
+    password: str,
+    *,
+    host: str,
+    port: int,
+    timeout: float = 10.0,
+    color: bool = True,
+) -> None:
     """Run the interactive REPL loop.
 
     Args:
         client: An already-connected and authenticated RconClient.
         password: The RCON password, stored for reconnection attempts.
+        host: Server hostname, used for the background refresh connection.
+        port: Server port, used for the background refresh connection.
+        timeout: Socket timeout for the background connection.
         color: If True, convert formatting codes to ANSI. If False, strip them.
     """
     ensure_config_dir()
 
-    # Build completer from server's help output
-    completer = _build_completer_from_server(client)
+    server = _ServerInfo(host, port, password, timeout)
+    completer = _init_completer(server)
 
     history = FileHistory(str(HISTORY_FILE))
     session: PromptSession[str] = PromptSession(
@@ -41,8 +73,10 @@ def run_repl(client: RconClient, password: str, *, color: bool = True) -> None:
 
     while True:
         try:
-            text = session.prompt(HTML("<ansigreen>rcon</ansigreen>> ")).strip()
-        except (EOFError, KeyboardInterrupt):
+            text = session.prompt(
+                HTML("<ansigreen>rcon</ansigreen>> "),
+            ).strip()
+        except EOFError, KeyboardInterrupt:
             print("\nGoodbye.")
             break
 
@@ -55,20 +89,17 @@ def run_repl(client: RconClient, password: str, *, color: bool = True) -> None:
 
         if text == "reconnect":
             if _reconnect(client, password):
-                # Rebuild completer after reconnection
-                new_completer = _build_completer_from_server(client)
-                if new_completer is not None:
-                    session.completer = new_completer
+                _start_background_refresh(server, completer)
             continue
 
-        _execute_command(client, password, text, session, color=color)
+        _execute_command(client, text, server, completer, color=color)
 
 
 def _execute_command(
     client: RconClient,
-    password: str,
     text: str,
-    session: PromptSession[str],
+    server: _ServerInfo,
+    completer: MinecraftCompleter,
     *,
     color: bool = True,
 ) -> None:
@@ -79,10 +110,8 @@ def _execute_command(
             print(format_response(response, color=color))
     except RconConnectionError:
         print("Connection lost. Attempting to reconnect...", file=sys.stderr)
-        if _reconnect(client, password):
-            new_completer = _build_completer_from_server(client)
-            if new_completer is not None:
-                session.completer = new_completer
+        if _reconnect(client, server.password):
+            _start_background_refresh(server, completer)
             try:
                 response = client.command(text)
                 if response:
@@ -94,21 +123,66 @@ def _execute_command(
                 )
 
 
-def _build_completer_from_server(client: RconClient) -> MinecraftCompleter | None:
-    """Query the server for help and build a completer from the response."""
+def _init_completer(server: _ServerInfo) -> MinecraftCompleter:
+    """Create a completer, load cache if available, and start background refresh."""
+    completer = MinecraftCompleter({})
+
+    cached = load_cache(server.host, server.port)
+    if cached:
+        completer.update_commands(cached)
+
+    _start_background_refresh(server, completer)
+
+    return completer
+
+
+def _start_background_refresh(
+    server: _ServerInfo,
+    completer: MinecraftCompleter,
+) -> None:
+    """Start a daemon thread to refresh help data and player list."""
+    thread = threading.Thread(
+        target=_background_refresh,
+        args=(server, completer),
+        daemon=True,
+    )
+    thread.start()
+
+
+def _background_refresh(
+    server: _ServerInfo,
+    completer: MinecraftCompleter,
+) -> None:
+    """Fetch help and player data in the background using a separate connection."""
+    bg_client = RconClient(server.host, server.port, timeout=server.timeout)
     try:
-        help_response = client.command("help")
-        if help_response:
-            formatted = format_help_response(help_response)
-            commands = parse_commands(formatted)
-            if commands:
-                return build_completer(commands)
-    except (ConnectionError, TimeoutError):
-        print(
-            "Warning: could not fetch help from server, autocomplete will be limited.",
-            file=sys.stderr,
-        )
-    return None
+        bg_client.connect()
+        bg_client.authenticate(server.password)
+
+        # Fetch player list first (quick, single command)
+        try:
+            players = fetch_player_list(bg_client)
+            completer.update_players(players)
+        except Exception:  # noqa: BLE001
+            log.debug("Failed to fetch player list", exc_info=True)
+
+        # Fetch all help pages and detailed command help (slow)
+        try:
+            commands = fetch_all_help(bg_client)
+            completer.update_commands(commands)
+            save_cache(server.host, server.port, commands)
+        except Exception:  # noqa: BLE001
+            log.debug("Failed to fetch help data", exc_info=True)
+
+        # Periodically refresh the player list
+        while True:
+            time.sleep(_PLAYER_REFRESH_INTERVAL)
+            players = fetch_player_list(bg_client)
+            completer.update_players(players)
+    except Exception:  # noqa: BLE001
+        log.debug("Background refresh stopped", exc_info=True)
+    finally:
+        bg_client.close()
 
 
 def _reconnect(client: RconClient, password: str) -> bool:

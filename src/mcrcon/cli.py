@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import sys
 
 from mcrcon.client import (
@@ -20,6 +21,7 @@ from mcrcon.config import (
 )
 from mcrcon.credentials import CredentialError, get_rcon_password
 from mcrcon.formatting import format_response
+from mcrcon.help_fetcher import cache_path, fetch_all_help, save_cache
 from mcrcon.repl import run_repl
 
 
@@ -56,6 +58,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=False,
         help="Strip formatting codes instead of converting to ANSI colors",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        default=False,
+        help="Enable debug logging to stderr",
+    )
+    parser.add_argument(
+        "--build-cache",
+        action="store_true",
+        default=False,
+        help="Fetch help data, save to cache, and exit",
+    )
     return parser
 
 
@@ -79,7 +93,7 @@ def select_server(config: AppConfig) -> tuple[str, ServerConfig]:
             idx = int(choice) - 1
             if 0 <= idx < len(servers):
                 return servers[idx]
-        except (ValueError, EOFError):
+        except ValueError, EOFError:
             pass
         print(f"Please enter a number between 1 and {len(servers)}")
 
@@ -148,6 +162,13 @@ def main() -> None:
     parser = build_parser()
     args = parser.parse_args()
 
+    if args.debug:
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(name)s %(levelname)s: %(message)s",
+            stream=sys.stderr,
+        )
+
     ensure_config_dir()
     config = load_config()
 
@@ -167,6 +188,23 @@ def main() -> None:
         client.close()
         sys.exit(1)
 
+    # Build cache mode: fetch help data, save to cache, and exit
+    if args.build_cache:
+        try:
+            commands = fetch_all_help(client)
+            if commands:
+                save_cache(server.host, server.port, commands)
+                path = cache_path(server.host, server.port)
+                print(f"Cached {len(commands)} commands to {path}")
+            else:
+                print(
+                    "No commands found. Cache not updated.",
+                    file=sys.stderr,
+                )
+        finally:
+            client.close()
+        return
+
     # Non-interactive mode: run single command and exit
     if args.command:
         try:
@@ -179,8 +217,15 @@ def main() -> None:
 
     # Interactive mode
     print(f"Connected to {display_name} ({server.host}:{server.port})")
-    print("Type 'help' for server commands, Ctrl+D or 'exit' to quit.\n")
+    print("Type '?' for server commands, Ctrl+D or 'exit' to quit.\n")
     try:
-        run_repl(client, password, color=not args.no_color)
+        run_repl(
+            client,
+            password,
+            host=server.host,
+            port=server.port,
+            timeout=args.timeout,
+            color=not args.no_color,
+        )
     finally:
         client.close()

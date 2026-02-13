@@ -1,7 +1,7 @@
 """Minecraft command completer for prompt_toolkit.
 
 Builds a dynamic completer from parsed help output, providing command name
-completion and argument-level completion for choices.
+completion, argument-level completion for choices, and player name completion.
 """
 
 from __future__ import annotations
@@ -10,7 +10,13 @@ from typing import TYPE_CHECKING
 
 from prompt_toolkit.completion import Completer, Completion
 
-from mcrcon.help_parser import Argument, OptionalChoice, RequiredChoice
+from mcrcon.help_parser import (
+    Argument,
+    Optional,
+    OptionalChoice,
+    Required,
+    RequiredChoice,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -21,12 +27,29 @@ if TYPE_CHECKING:
 # Local REPL commands that are not sent to the server
 LOCAL_COMMANDS = {"exit", "quit", "reconnect"}
 
+# Argument names that indicate a player name is expected
+_PLAYER_ARG_NAMES = {"player", "players", "target", "targets", "playername", "name"}
+
 
 class MinecraftCompleter(Completer):
-    """Completer that provides Minecraft command and argument completions."""
+    """Completer that provides Minecraft command and argument completions.
+
+    Supports dynamic updates to commands and player lists from background
+    threads. Reference assignments are atomic under the GIL, so updates
+    are thread-safe without explicit locking.
+    """
 
     def __init__(self, commands: dict[str, list[Argument]]) -> None:
         self.commands = commands
+        self.players: list[str] = []
+
+    def update_commands(self, commands: dict[str, list[Argument]]) -> None:
+        """Replace the commands dict atomically."""
+        self.commands = commands
+
+    def update_players(self, players: list[str]) -> None:
+        """Replace the player list atomically."""
+        self.players = players
 
     def get_completions(
         self,
@@ -54,7 +77,7 @@ class MinecraftCompleter(Completer):
         args = self.commands[cmd]
         # Determine which argument position we're completing
         # words[0] is the command, so argument index is len(words) - 2
-        # unless we're typing a new word, then it's len(words) - 1
+        # unless we're typing a new word, then it is len(words) - 1
         if typing_new_word:
             arg_index = len(words) - 1
             prefix = ""
@@ -62,10 +85,12 @@ class MinecraftCompleter(Completer):
             arg_index = len(words) - 2
             prefix = words[-1]
 
-        if arg_index >= len(args):
-            return
-
-        yield from self._complete_argument(args[arg_index], prefix)
+        if arg_index < len(args):
+            yield from self._complete_argument(args[arg_index], prefix)
+        elif not args:
+            # No argument metadata (index-only, no detailed help yet).
+            # Offer player names as a fallback.
+            yield from self._complete_players(prefix)
 
     def _complete_command(self, prefix: str) -> Iterable[Completion]:
         """Yield command name completions matching the prefix."""
@@ -80,12 +105,24 @@ class MinecraftCompleter(Completer):
                 yield Completion(cmd, start_position=-len(prefix))
 
     def _complete_argument(self, arg: Argument, prefix: str) -> Iterable[Completion]:
-        """Yield argument completions for choice-type arguments."""
+        """Yield argument completions for choice-type and player-type arguments."""
         if isinstance(arg, RequiredChoice | OptionalChoice):
             prefix_lower = prefix.lower()
             for option in arg.options:
                 if option.lower().startswith(prefix_lower):
                     yield Completion(option, start_position=-len(prefix))
+        elif (
+            isinstance(arg, Required | Optional)
+            and arg.name.lower() in _PLAYER_ARG_NAMES
+        ):
+            yield from self._complete_players(prefix)
+
+    def _complete_players(self, prefix: str) -> Iterable[Completion]:
+        """Yield player name completions matching the prefix."""
+        prefix_lower = prefix.lower()
+        for player in sorted(self.players):
+            if player.lower().startswith(prefix_lower):
+                yield Completion(player, start_position=-len(prefix))
 
 
 def build_completer(commands: dict[str, list[Argument]]) -> MinecraftCompleter:

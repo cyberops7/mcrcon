@@ -1,12 +1,17 @@
 """Tests for the help output parser."""
 
 from mcrcon.help_parser import (
+    CommandHelp,
     Optional,
     OptionalChoice,
     Required,
     RequiredChoice,
     format_help_response,
+    parse_command_help,
     parse_commands,
+    parse_help_index,
+    parse_page_count,
+    parse_player_list,
 )
 
 
@@ -143,3 +148,193 @@ class TestParseCommands:
         assert len(difficulty) == 1
         assert isinstance(difficulty[0], RequiredChoice)
         assert "hard" in difficulty[0].options
+
+
+class TestParsePageCount:
+    def test_extracts_page_count(self):
+        text = "--------- Help: Index (1/58) --------------------------\nsome content"
+        assert parse_page_count(text) == 58
+
+    def test_different_page_numbers(self):
+        text = "--------- Help: Index (3/58) --------------------------"
+        assert parse_page_count(text) == 58
+
+    def test_single_page(self):
+        text = "--------- Help: Index (1/1) --------------------------"
+        assert parse_page_count(text) == 1
+
+    def test_no_page_count(self):
+        text = "Some random text without page info"
+        assert parse_page_count(text) == 1
+
+    def test_empty_string(self):
+        assert parse_page_count("") == 1
+
+
+class TestParseHelpIndex:
+    def test_parses_command_entries(self):
+        text = (
+            "--------- Help: Index (3/58) --------------------------\n"
+            "/.s: Execute last CraftScript\n"
+            "//: Toggle the super pickaxe function\n"
+            "//calculate: Evaluate a mathematical expression\n"
+        )
+        commands = parse_help_index(text)
+
+        assert ".s" in commands
+        assert "/" in commands
+        assert "/calculate" in commands
+
+    def test_skips_header_lines(self):
+        text = (
+            "--------- Help: Index (1/58) --------------------------\n"
+            "/list: Lists players\n"
+        )
+        commands = parse_help_index(text)
+        assert commands == ["list"]
+
+    def test_skips_category_entries(self):
+        text = (
+            "--------- Help: Index (1/58) --------------------------\n"
+            "Aliases: Lists command aliases\n"
+            "Minecraft: All commands for Minecraft\n"
+            "Essentials: All commands for Essentials\n"
+        )
+        commands = parse_help_index(text)
+        assert commands == []
+
+    def test_skips_meta_lines(self):
+        text = (
+            "--------- Help: Index (1/58) --------------------------\n"
+            "Use /help [n] to get page n of help.\n"
+            "/list: Lists players\n"
+        )
+        commands = parse_help_index(text)
+        assert commands == ["list"]
+
+    def test_namespaced_commands(self):
+        text = (
+            "--------- Help: Index (35/58) -------------------------\n"
+            "/minecraft:teammsg: A Mojang provided command.\n"
+            "/minecraft:teleport: A Mojang provided command.\n"
+        )
+        commands = parse_help_index(text)
+        assert "minecraft:teammsg" in commands
+        assert "minecraft:teleport" in commands
+
+    def test_mixed_commands(self):
+        text = (
+            "--------- Help: Index (45/58) -------------------------\n"
+            "/repair: Repairs the durability of one or all items.\n"
+            "/repl: Block replacer tool\n"
+            "/minecraft:tell: A Mojang provided command.\n"
+        )
+        commands = parse_help_index(text)
+        assert commands == ["repair", "repl", "minecraft:tell"]
+
+    def test_empty_input(self):
+        assert parse_help_index("") == []
+
+
+class TestParseCommandHelp:
+    def test_parses_usage_and_aliases(self):
+        text = (
+            "--------- Help: /teleport -----------------------------\n"
+            "Alias for /tp\n"
+            "Description: Teleport to a player.\n"
+            "Usage: /tp <player> [otherplayer]\n"
+            "Aliases: tele, etele, teleport, eteleport, etp, tp2p, etp2p\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert len(result.usage_args) == 2
+        assert isinstance(result.usage_args[0], Required)
+        assert result.usage_args[0].name == "player"
+        assert isinstance(result.usage_args[1], Optional)
+        assert result.usage_args[1].name == "otherplayer"
+        assert "tele" in result.aliases
+        assert "etp" in result.aliases
+        assert len(result.aliases) == 7
+
+    def test_usage_only(self):
+        text = (
+            "--------- Help: /ban ---------------------------------\n"
+            "Description: Bans a player.\n"
+            "Usage: /ban <player> [reason]\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert len(result.usage_args) == 2
+        assert result.aliases == []
+
+    def test_aliases_only(self):
+        text = (
+            "--------- Help: /tp ----------------------------------\n"
+            "Description: Teleport.\n"
+            "Aliases: teleport, tele\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert result.usage_args == []
+        assert result.aliases == ["teleport", "tele"]
+
+    def test_no_useful_content(self):
+        text = (
+            "--------- Help: /minecraft:teleport -------------------\n"
+            "Description: A Mojang provided command.\n"
+        )
+        result = parse_command_help(text)
+        assert result is None
+
+    def test_empty_input(self):
+        assert parse_command_help("") is None
+
+    def test_usage_with_choices(self):
+        text = (
+            "--------- Help: /gamemode -----------------------------\n"
+            "Description: Sets the game mode.\n"
+            "Usage: /gamemode (survival|creative|adventure|spectator) [<target>]\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert len(result.usage_args) == 2
+        assert isinstance(result.usage_args[0], RequiredChoice)
+        expected = ["survival", "creative", "adventure", "spectator"]
+        assert result.usage_args[0].options == expected
+        assert isinstance(result.usage_args[1], Optional)
+
+
+class TestParsePlayerList:
+    def test_single_player(self):
+        text = "There are 1 out of maximum 20 players online.\ndefault: Skynet913379\n"
+        players = parse_player_list(text)
+        assert players == ["Skynet913379"]
+
+    def test_multiple_players_same_group(self):
+        text = (
+            "There are 3 out of maximum 20 players online.\n"
+            "default: Player1, Player2, Player3\n"
+        )
+        players = parse_player_list(text)
+        assert players == ["Player1", "Player2", "Player3"]
+
+    def test_multiple_groups(self):
+        text = (
+            "There are 4 out of maximum 20 players online.\n"
+            "default: Player1, Player2\n"
+            "admin: AdminPlayer, ModPlayer\n"
+        )
+        players = parse_player_list(text)
+        assert players == ["Player1", "Player2", "AdminPlayer", "ModPlayer"]
+
+    def test_no_players(self):
+        text = "There are 0 out of maximum 20 players online.\n"
+        players = parse_player_list(text)
+        assert players == []
+
+    def test_empty_input(self):
+        assert parse_player_list("") == []

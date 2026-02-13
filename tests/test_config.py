@@ -1,6 +1,6 @@
 """Tests for configuration loading."""
 
-from pathlib import Path
+from pathlib import Path  # noqa: TC003
 from textwrap import dedent
 
 from mcrcon.config import AppConfig, CredentialConfig, ServerConfig, load_config

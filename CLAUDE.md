@@ -37,27 +37,48 @@ Manages TCP connections and command/response flow. Key patterns:
 
 ### REPL Layer (`repl.py`)
 Interactive prompt using `prompt_toolkit`. Features:
-- **Dynamic autocomplete**: Queries server's `/help` command at startup to build command completions
+- **Dynamic autocomplete**: Background thread fetches help data using `?` command and the online player list
+- **Cache-first startup**: Loads cached help from `~/.config/mcrcon/cache/` for instant completions, then refreshes in the background
+- **Background refresh**: Uses a separate `RconClient` connection (via `_ServerInfo` dataclass) to avoid socket contention with the main REPL
+- **Player list refresh**: Periodically refreshes the online player list (every 60s) for player name completions
 - **History**: Stores command history in `~/.config/mcrcon/history`
 - **Auto-reconnect**: On connection loss, attempts reconnection with exponential backoff (max 3 attempts)
 - **Special commands**: `exit`, `quit`, `reconnect` (handled locally, not sent to server)
 
 ### Configuration System (`config.py`)
 - **Config location**: `~/.config/mcrcon/config.toml`
+- **Cache location**: `~/.config/mcrcon/cache/` (per-server JSON files)
 - **Credential integration**: Uses 1Password CLI (`op`) to retrieve RCON passwords
 - **Fallback defaults**: Hardcoded defaults in `_default_config()` if no config file exists
 - **Credential resolution**: Per-server credentials override default credentials
 
 ### Help Parser (`help_parser.py`)
 Parses Minecraft server help output to build dynamic autocompletions:
-- **Argument types**: `Required`, `Optional`, `RequiredChoice`, `OptionalChoice`
-- **Format fixing**: `format_help_response()` splits concatenated help lines
-- **Alias resolution**: Handles aliases like `/msg -> tell`
+- **Argument types**: `Required`, `Optional`, `RequiredChoice`, `OptionalChoice`, `CommandHelp`
+- **Paginated help**: `parse_page_count()` extracts total pages from the `(1/58)` header
+- **Index parsing**: `parse_help_index()` extracts command names from index pages, handling namespaced commands (e.g., `minecraft:teleport`) and skipping categories
+- **Detailed help**: `parse_command_help()` parses individual command help (Usage, Aliases)
+- **Player list**: `parse_player_list()` parses the `online` command output (`group: player1, player2`)
+- **Single-pass arg parsing**: `_parse_args()` uses a combined regex (`_RE_ARG`) that matches all argument types in one left-to-right scan, so ordering is correct by construction
+- **Bare optional args**: Handles `[name]` format (without angle brackets) in addition to `[<name>]`
+
+### Help Fetcher (`help_fetcher.py`)
+Fetches help data from the server and manages the on-disk cache:
+- **Formatting code stripping**: All `client.command()` responses are passed through `strip_formatting()` before parsing, since Bukkit/Spigot servers embed `§x` color codes in help output
+- **Paginated fetching**: Sends `?` for page 1, `? N` for subsequent pages to collect all commands
+- **Detailed help**: Sends `? <command>` for each unique command to get usage args and aliases
+- **Namespace deduplication**: Groups namespaced variants (e.g., `minecraft:teleport` and `teleport`) to avoid redundant queries
+- **Cache format**: JSON with version number, stores serialized `Argument` types per command
+- **Serialization**: Bidirectional JSON serialization for all `Argument` types
+- **Debug logging**: Extensive `log.debug()` tracing at every pipeline stage (page counts, parsed commands, detail results, cache operations)
 
 ### Completer (`completer.py`)
 Provides intelligent autocomplete using parsed help data:
-- **Command completion**: Completes command names
+- **Command completion**: Completes command names (case-insensitive)
 - **Argument completion**: Completes choice-type arguments (e.g., `(grant|revoke)`)
+- **Player name completion**: Completes player names for arguments named `player`, `target`, `targets`, etc.
+- **Fallback completion**: When no argument metadata exists (index-only), offers player names for any argument position
+- **Dynamic updates**: `update_commands()` and `update_players()` allow thread-safe atomic replacement
 - **Position-aware**: Tracks which argument position is being completed
 
 ### Credentials (`credentials.py`)
@@ -104,4 +125,6 @@ Test files have relaxed rules (annotations, magic values, asserts, etc.).
 - **CLI entry point**: `mcrcon.cli:main` (defined in `pyproject.toml`)
 - **Main flow**: `cli.py` → `client.py` → `repl.py` for interactive mode
 - **Non-interactive mode**: Use `-c` flag to run a single command and exit
+- **Cache build mode**: Use `--build-cache` to fetch help data, save to cache, and exit (useful for debugging)
+- **Debug mode**: Use `--debug` to enable debug logging to stderr (configures `logging.basicConfig` with `DEBUG` level)
 - **Color control**: Use `--no-color` to disable ANSI color output

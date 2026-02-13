@@ -4,7 +4,7 @@ Interactive Minecraft RCON CLI client with dynamic command autocomplete and 1Pas
 
 ## Features
 
-- **Dynamic autocomplete**: Queries the server's `help` command to build tab completions for commands and arguments
+- **Dynamic autocomplete**: Queries the server's paginated help system to build tab completions for commands, arguments, and player names
 - **1Password integration**: Retrieves RCON passwords securely from 1Password CLI
 - **Command history**: Persistent history across sessions
 - **Auto-reconnection**: Reconnects automatically on connection loss with exponential backoff
@@ -102,7 +102,7 @@ uv run mcrcon mc-1 -c "time set day"
 ### CLI Reference
 
 ```
-mcrcon [server] [-p PASSWORD] [-c COMMAND] [--timeout SECONDS] [--no-color]
+mcrcon [server] [-p PASSWORD] [-c COMMAND] [--timeout SECONDS] [--no-color] [--debug] [--build-cache]
 ```
 
 | Flag | Description |
@@ -112,10 +112,12 @@ mcrcon [server] [-p PASSWORD] [-c COMMAND] [--timeout SECONDS] [--no-color]
 | `-c`, `--command` | Execute a single command and exit |
 | `--timeout` | Socket timeout in seconds (default: 10) |
 | `--no-color` | Strip formatting codes instead of converting to ANSI colors |
+| `--debug` | Enable debug logging to stderr |
+| `--build-cache` | Fetch help data, save to cache, and exit |
 
 ### Tab Completion
 
-The client dynamically builds completions from the server's available commands:
+The client dynamically builds completions from the server's available commands. On first connect, help data is fetched in the background and cached per-server for instant completions on subsequent startups. Player names are also completed and refreshed periodically.
 
 ```
 rcon> game<TAB>
@@ -124,8 +126,22 @@ gamemode  gamerule
 rcon> gamemode <TAB>
 survival  creative  adventure  spectator
 
-rcon> gamerule doFire<TAB>
-doFireTick
+rcon> ban Al<TAB>
+Alice
+```
+
+### Debugging
+
+Use `--debug` to trace the help fetching pipeline:
+
+```bash
+uv run mcrcon mc-1 --debug
+```
+
+To build the command cache without entering interactive mode (useful for verifying completions):
+
+```bash
+uv run mcrcon mc-1 --build-cache --debug
 ```
 
 ## Local Commands
@@ -180,7 +196,9 @@ src/mcrcon/
 ├── client.py        # TCP client with auth and multi-packet support
 ├── config.py        # TOML configuration loading
 ├── credentials.py   # 1Password CLI integration
+├── formatting.py    # Minecraft formatting code conversion/stripping
 ├── help_parser.py   # Parse server help output into command definitions
+├── help_fetcher.py  # Fetch help data from server and manage on-disk cache
 ├── completer.py     # prompt_toolkit completer from parsed commands
 ├── repl.py          # Interactive REPL with history and reconnection
 └── cli.py           # Entry point and argument parsing
@@ -189,9 +207,12 @@ src/mcrcon/
 ## How It Works
 
 1. **Connect & Authenticate**: Establishes TCP connection and authenticates with RCON password
-2. **Fetch Help**: Sends `help` command to server and parses the response
-3. **Build Completer**: Extracts command names and argument structures (required/optional, choices)
-4. **Interactive Loop**: Provides tab completion, history, and command execution
+2. **Load Cache**: Loads cached help data from `~/.config/mcrcon/cache/` for instant completions
+3. **Background Fetch**: Opens a separate RCON connection to fetch all paginated help pages (`?`, `? 2`, ..., `? N`) and detailed command help (`? <command>`) without blocking the REPL
+4. **Strip Formatting**: Removes Minecraft formatting codes (`§x`) from server responses before parsing
+5. **Build Completer**: Extracts command names, argument structures (required/optional, choices), aliases, and player names
+6. **Interactive Loop**: Provides tab completion, history, and command execution
+7. **Periodic Refresh**: Player list is refreshed every 60 seconds in the background
 
 The completer is dynamic, so it automatically supports:
 - Modded servers with custom commands
