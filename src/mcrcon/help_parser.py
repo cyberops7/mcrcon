@@ -168,7 +168,7 @@ def parse_player_list(text: str) -> list[str]:
     """Parse the output of the 'online' command into a list of player names.
 
     Expected format:
-        There are 2 out of maximum 20 players online.
+        There are 2 out of a maximum 20 players online.
         default: Player1, Player2
         admin: Player3
     """

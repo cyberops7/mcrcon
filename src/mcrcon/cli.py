@@ -119,7 +119,7 @@ def resolve_server(
             except ValueError:
                 pass
 
-        # Treat as hostname with default port
+        # Treat as hostname with a default port
         return server_arg, ServerConfig(name=server_arg, host=server_arg)
 
     # No server arg provided -- check for default
@@ -205,7 +205,7 @@ def main() -> None:
             client.close()
         return
 
-    # Non-interactive mode: run single command and exit
+    # Non-interactive mode: run a single command and exit
     if args.command:
         try:
             response = client.command(args.command)

@@ -109,7 +109,7 @@ class RconClient:
             try:
                 response = self._recv()
             except TimeoutError:
-                # If we time out waiting for the sentinel, return what we have
+                # If things time out waiting for the sentinel, return what we have
                 break
 
             if response.request_id == _SENTINEL_ID:

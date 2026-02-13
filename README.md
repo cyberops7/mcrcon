@@ -8,7 +8,7 @@ Interactive Minecraft RCON CLI client with dynamic command autocomplete and 1Pas
 - **1Password integration**: Retrieves RCON passwords securely from 1Password CLI
 - **Command history**: Persistent history across sessions
 - **Auto-reconnection**: Reconnects automatically on connection loss with exponential backoff
-- **Multi-server support**: Configure multiple servers with per-server or shared credentials
+- **Multiserver support**: Configure multiple servers with per-server or shared credentials
 - **Single-command mode**: Execute one-off commands without entering interactive mode
 - **Color output**: Converts Minecraft formatting codes to ANSI terminal colors and styles
 
@@ -105,19 +105,19 @@ uv run mcrcon mc-1 -c "time set day"
 mcrcon [server] [-p PASSWORD] [-c COMMAND] [--timeout SECONDS] [--no-color] [--debug] [--build-cache]
 ```
 
-| Flag | Description |
-|------|-------------|
-| `server` | Server name (from config) or `host:port` |
-| `-p`, `--password` | RCON password (overrides 1Password lookup) |
-| `-c`, `--command` | Execute a single command and exit |
-| `--timeout` | Socket timeout in seconds (default: 10) |
-| `--no-color` | Strip formatting codes instead of converting to ANSI colors |
-| `--debug` | Enable debug logging to stderr |
-| `--build-cache` | Fetch help data, save to cache, and exit |
+| Flag               | Description                                                 |
+|--------------------|-------------------------------------------------------------|
+| `server`           | Server name (from config) or `host:port`                    |
+| `-p`, `--password` | RCON password (overrides 1Password lookup)                  |
+| `-c`, `--command`  | Execute a single command and exit                           |
+| `--timeout`        | Socket timeout in seconds (default: 10)                     |
+| `--no-color`       | Strip formatting codes instead of converting to ANSI colors |
+| `--debug`          | Enable debug logging to stderr                              |
+| `--build-cache`    | Fetch help data, save to cache, and exit                    |
 
 ### Tab Completion
 
-The client dynamically builds completions from the server's available commands. On first connect, help data is fetched in the background and cached per-server for instant completions on subsequent startups. Player names are also completed and refreshed periodically.
+The client dynamically builds completions from the server's available commands. On the first connection, help data is fetched in the background and cached per-server for instant completions on subsequent startups. Player names are also completed and refreshed periodically.
 
 ```
 rcon> game<TAB>
@@ -212,7 +212,7 @@ src/mcrcon/
 4. **Strip Formatting**: Removes Minecraft formatting codes (`§x`) from server responses before parsing
 5. **Build Completer**: Extracts command names, argument structures (required/optional, choices), aliases, and player names
 6. **Interactive Loop**: Provides tab completion, history, and command execution
-7. **Periodic Refresh**: Player list is refreshed every 60 seconds in the background
+7. **Periodic Refresh**: The player list is refreshed every 60 seconds in the background
 
 The completer is dynamic, so it automatically supports:
 - Modded servers with custom commands
@@ -241,7 +241,7 @@ Ensure `enable-rcon=true` and `rcon.password` are set in `server.properties`.
 
 ### Connection Timeout
 
-Check that the server is reachable and RCON port (25575) is open:
+Check that the server is reachable and the RCON port (25575) is open:
 
 ```bash
 nc -zv 10.0.0.112 25575

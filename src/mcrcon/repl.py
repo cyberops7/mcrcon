@@ -159,7 +159,7 @@ def _background_refresh(
         bg_client.connect()
         bg_client.authenticate(server.password)
 
-        # Fetch player list first (quick, single command)
+        # Fetch the player list first (quick, single command)
         try:
             players = fetch_player_list(bg_client)
             completer.update_players(players)

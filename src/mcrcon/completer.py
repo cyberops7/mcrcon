@@ -60,7 +60,7 @@ class MinecraftCompleter(Completer):
         text = document.text_before_cursor
         words = text.split()
 
-        # If text ends with a space, the user is starting a new word
+        # If the text ends with a space, the user is starting a new word
         typing_new_word = text.endswith(" ") if text else True
 
         if not words or (len(words) == 1 and not typing_new_word):
