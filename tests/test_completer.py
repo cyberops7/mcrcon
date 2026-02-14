@@ -148,3 +148,98 @@ class TestDynamicUpdates:
         completer.update_players(["Alice"])
         results = _completions(completer, "kick ")
         assert "Alice" in results
+
+
+class TestChoiceCompletion:
+    def test_choice_completion_with_angle_brackets(self):
+        """Choice arguments from angle-bracket format should complete their options."""
+        from mcrcon.help_parser import RequiredChoice, Optional
+
+        completer = MinecraftCompleter({
+            "gamemode": [
+                RequiredChoice(options=["survival", "creative", "adventure", "spectator"]),
+                Optional(name="player"),
+            ],
+        })
+        completer.update_players(["Alice"])
+
+        # First argument should complete with gamemode choices
+        results = _completions(completer, "gamemode ")
+        assert "survival" in results
+        assert "creative" in results
+        assert "adventure" in results
+        assert "spectator" in results
+        assert "Alice" not in results
+
+        # Second argument should complete with player names
+        results = _completions(completer, "gamemode creative ")
+        assert "Alice" in results
+        assert "creative" not in results
+
+    def test_choice_with_prefix(self):
+        """Choice completion should filter by prefix."""
+        from mcrcon.help_parser import RequiredChoice
+
+        completer = MinecraftCompleter({
+            "gamemode": [
+                RequiredChoice(options=["survival", "creative", "adventure", "spectator"]),
+            ],
+        })
+
+        results = _completions(completer, "gamemode s")
+        assert "survival" in results
+        assert "spectator" in results
+        assert "creative" not in results
+        assert "adventure" not in results
+
+
+class TestPlayerArgumentRecognition:
+    def test_multi_word_player_argument(self):
+        """Multi-word player argument names like 'other player' should trigger completion."""
+        completer = MinecraftCompleter({
+            "teleport": [
+                Required(name="player"),
+                Required(name="other player"),
+            ],
+        })
+        completer.update_players(["Alice", "Bob"])
+
+        # First argument
+        results = _completions(completer, "teleport ")
+        assert "Alice" in results
+        assert "Bob" in results
+
+        # Second argument (multi-word name)
+        results = _completions(completer, "teleport Alice ")
+        assert "Alice" in results
+        assert "Bob" in results
+
+    def test_compound_player_argument(self):
+        """Compound argument names like 'targetplayer' should match."""
+        completer = MinecraftCompleter({
+            "kick": [Required(name="targetplayer")],
+        })
+        completer.update_players(["Alice"])
+
+        results = _completions(completer, "kick ")
+        assert "Alice" in results
+
+    def test_snake_case_player_argument(self):
+        """Snake_case argument names like 'target_player' should match."""
+        completer = MinecraftCompleter({
+            "ban": [Required(name="target_player")],
+        })
+        completer.update_players(["Alice"])
+
+        results = _completions(completer, "ban ")
+        assert "Alice" in results
+
+    def test_case_insensitive_matching(self):
+        """Token matching should be case-insensitive."""
+        completer = MinecraftCompleter({
+            "test": [Required(name="TARGET")],
+        })
+        completer.update_players(["Alice"])
+
+        results = _completions(completer, "test ")
+        assert "Alice" in results

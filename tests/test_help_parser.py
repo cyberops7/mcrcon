@@ -307,6 +307,97 @@ class TestParseCommandHelp:
         assert result.usage_args[0].options == expected
         assert isinstance(result.usage_args[1], Optional)
 
+    def test_required_choice_in_angle_brackets(self):
+        """Choice arguments in angle brackets like <a|b|c> should parse as RequiredChoice."""
+        text = (
+            "--------- Help: /gamemode -----------------------------\n"
+            "Description: Sets the game mode.\n"
+            "Usage: /gamemode <survival|creative|adventure|spectator>\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert len(result.usage_args) == 1
+        assert isinstance(result.usage_args[0], RequiredChoice)
+        expected = ["survival", "creative", "adventure", "spectator"]
+        assert result.usage_args[0].options == expected
+
+    def test_choice_in_angle_brackets_followed_by_optional(self):
+        """A choice in angle brackets followed by an optional should both parse correctly."""
+        text = (
+            "--------- Help: /gamemode -----------------------------\n"
+            "Description: Change player gamemode.\n"
+            "Usage: /gamemode <survival|creative|adventure|spectator> [player]\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert len(result.usage_args) == 2
+        assert isinstance(result.usage_args[0], RequiredChoice)
+        expected = ["survival", "creative", "adventure", "spectator"]
+        assert result.usage_args[0].options == expected
+        assert isinstance(result.usage_args[1], Optional)
+        assert result.usage_args[1].name == "player"
+
+    def test_multiple_choice_formats(self):
+        """Both parentheses and angle bracket choice formats should work."""
+        # Parentheses format (original)
+        text1 = (
+            "--------- Help: /test1 --------------------------------\n"
+            "Usage: /test1 (a|b|c)\n"
+        )
+        result1 = parse_command_help(text1)
+        assert result1 is not None
+        assert isinstance(result1.usage_args[0], RequiredChoice)
+        assert result1.usage_args[0].options == ["a", "b", "c"]
+
+        # Angle bracket format (new)
+        text2 = (
+            "--------- Help: /test2 --------------------------------\n"
+            "Usage: /test2 <a|b|c>\n"
+        )
+        result2 = parse_command_help(text2)
+        assert result2 is not None
+        assert isinstance(result2.usage_args[0], RequiredChoice)
+        assert result2.usage_args[0].options == ["a", "b", "c"]
+
+    def test_complex_command_with_angle_bracket_choices(self):
+        """Complex commands with multiple arguments including angle bracket choices."""
+        text = (
+            "--------- Help: /eco ----------------------------------\n"
+            "Usage: /eco <give|take|set|reset> <player> <amount>\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert len(result.usage_args) == 3
+        assert isinstance(result.usage_args[0], RequiredChoice)
+        assert result.usage_args[0].options == ["give", "take", "set", "reset"]
+        assert isinstance(result.usage_args[1], Required)
+        assert result.usage_args[1].name == "player"
+        assert isinstance(result.usage_args[2], Required)
+        assert result.usage_args[2].name == "amount"
+
+    def test_multi_line_usage(self):
+        """Usage arguments split across multiple lines should be parsed correctly."""
+        text = (
+            "--------- Help: /gamemode -----------------------------\n"
+            "Description: Change player gamemode.\n"
+            "Usage: /gamemode <survival|creative|adventure|spectator>\n"
+            "[player]\n"
+            "Aliases: adventure, eadventure, gm\n"
+        )
+        result = parse_command_help(text)
+
+        assert result is not None
+        assert len(result.usage_args) == 2
+        assert isinstance(result.usage_args[0], RequiredChoice)
+        assert result.usage_args[0].options == ["survival", "creative", "adventure", "spectator"]
+        assert isinstance(result.usage_args[1], Optional)
+        assert result.usage_args[1].name == "player"
+        assert "adventure" in result.aliases
+        assert "gm" in result.aliases
+
 
 class TestParsePlayerList:
     def test_single_player(self):

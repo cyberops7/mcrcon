@@ -31,6 +31,33 @@ LOCAL_COMMANDS = {"exit", "quit", "reconnect"}
 _PLAYER_ARG_NAMES = {"player", "players", "target", "targets", "playername", "name"}
 
 
+def _is_player_argument(arg_name: str) -> bool:
+    """Check if an argument name semantically refers to a player.
+
+    Uses token-based matching to handle multi-word argument names
+    like "other player", compound names like "targetplayer", and
+    variations like "target_player".
+
+    Args:
+        arg_name: The argument name to check (e.g., "player", "other player")
+
+    Returns:
+        True if the argument name indicates a player-type argument
+    """
+    name_lower = arg_name.lower()
+
+    # Fast path: exact match
+    if name_lower in _PLAYER_ARG_NAMES:
+        return True
+
+    # Check if any player-indicating token appears in the name
+    for token in _PLAYER_ARG_NAMES:
+        if token in name_lower:
+            return True
+
+    return False
+
+
 class MinecraftCompleter(Completer):
     """Completer that provides Minecraft command and argument completions.
 
@@ -111,10 +138,7 @@ class MinecraftCompleter(Completer):
             for option in arg.options:
                 if option.lower().startswith(prefix_lower):
                     yield Completion(option, start_position=-len(prefix))
-        elif (
-            isinstance(arg, Required | Optional)
-            and arg.name.lower() in _PLAYER_ARG_NAMES
-        ):
+        elif isinstance(arg, Required | Optional) and _is_player_argument(arg.name):
             yield from self._complete_players(prefix)
 
     def _complete_players(self, prefix: str) -> Iterable[Completion]:

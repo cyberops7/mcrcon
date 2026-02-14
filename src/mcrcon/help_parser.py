@@ -127,8 +127,13 @@ def parse_command_help(text: str) -> CommandHelp | None:
     usage_args: list[Argument] = []
     aliases: list[str] = []
 
-    for raw_line in text.splitlines():
+    lines = text.splitlines()
+    i = 0
+    while i < len(lines):
+        raw_line = lines[i]
         line = raw_line.strip()
+        i += 1
+
         if not line:
             continue
 
@@ -136,10 +141,25 @@ def parse_command_help(text: str) -> CommandHelp | None:
         if _RE_HELP_HEADER.match(line):
             continue
 
-        # Parse Usage line
+        # Parse Usage line (and continuation lines)
         if line.startswith("Usage:"):
             usage_str = line[len("Usage:") :].strip()
-            # The usage line includes the command name, so strip it
+
+            # Check for continuation lines (lines that don't start with a keyword)
+            while i < len(lines):
+                next_line = lines[i].strip()
+                # Stop if we hit another section or empty line or header
+                if (not next_line or
+                    next_line.startswith("Usage:") or
+                    next_line.startswith("Aliases:") or
+                    next_line.startswith("Description:") or
+                    next_line.startswith("Alias for") or
+                    _RE_HELP_HEADER.match(next_line)):
+                    break
+                # Append continuation line
+                usage_str += " " + next_line
+                i += 1
+
             # Strip the command name before parsing args
             cmd_match = re.match(r"^/?[\w:.-]+\s*(.*)", usage_str)
             if cmd_match:
@@ -253,6 +273,7 @@ _RE_ARG = re.compile(
     r"|\[(?P<opt_bracket><[^>]+>)\]"  # Optional bracketed: [<name>]
     r"|\[(?P<opt_choice>[^\]]+\|[^\]]+)\]"  # Optional choice: [a|b|c]
     r"|\[(?P<opt_bare>\w+)\]"  # Optional bare: [name]
+    r"|<(?P<req_angle_choice>[^>]+\|[^>]+)>"  # Required choice in angles: <a|b|c>
     r"|<(?P<required>[^>]+)>"  # Required: <name>
 )
 
@@ -278,6 +299,9 @@ def _parse_args(args_str: str) -> list[Argument]:
             args.append(OptionalChoice(options=options))
         elif match.group("opt_bare") is not None:
             args.append(Optional(name=match.group("opt_bare")))
+        elif match.group("req_angle_choice") is not None:
+            options = [s.strip() for s in match.group("req_angle_choice").split("|")]
+            args.append(RequiredChoice(options=options))
         elif match.group("required") is not None:
             args.append(Required(name=match.group("required")))
 

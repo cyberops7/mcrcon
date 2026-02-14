@@ -15,7 +15,7 @@ mcrcon = "mcrcon.cli:main"
 dev = [
     "pyrefly>=0.52.0",
     "pytest>=9.0.2",
-    "ruff>=0.15.0",
+    "ruff>=0.15.1",
 ]
 
 [build-system]
