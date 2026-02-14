@@ -7,10 +7,15 @@ import sys
 import threading
 import time
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.formatted_text import HTML
 from prompt_toolkit.history import FileHistory
+from prompt_toolkit.key_binding import KeyBindings
+
+if TYPE_CHECKING:
+    from prompt_toolkit.key_binding.key_processor import KeyPressEvent
 
 from mcrcon.client import ConnectionError as RconConnectionError
 from mcrcon.client import RconClient
@@ -28,6 +33,44 @@ log = logging.getLogger(__name__)
 
 MAX_RECONNECT_ATTEMPTS = 3
 _PLAYER_REFRESH_INTERVAL = 60
+
+
+def _create_key_bindings() -> KeyBindings:
+    """Create custom key bindings for the REPL.
+
+    Ctrl+C and Ctrl+D behavior:
+    - If the current line has text, abandon it (show but don't execute) and start fresh
+    - If the current line is empty, exit the application
+    """
+    kb = KeyBindings()
+
+    @kb.add("c-c")
+    def _(event: KeyPressEvent) -> None:
+        """Handle Ctrl+C: abandon line if non-empty, exit if empty."""
+        buffer = event.app.current_buffer
+        if buffer.text:
+            # Abandon the current line - insert newline and reset buffer
+            print()  # Move to next line
+            buffer.reset()
+            event.app.renderer.reset()  # Force prompt redraw
+        else:
+            # Exit the application
+            event.app.exit(exception=KeyboardInterrupt)
+
+    @kb.add("c-d")
+    def _(event: KeyPressEvent) -> None:
+        """Handle Ctrl+D: abandon line if non-empty, exit if empty."""
+        buffer = event.app.current_buffer
+        if buffer.text:
+            # Abandon the current line - insert newline and reset buffer
+            print()  # Move to next line
+            buffer.reset()
+            event.app.renderer.reset()  # Force prompt redraw
+        else:
+            # Exit the application
+            event.app.exit(exception=EOFError)
+
+    return kb
 
 
 @dataclass(frozen=True)
@@ -67,10 +110,12 @@ def run_repl(  # noqa: PLR0913
     completer = _init_completer(server)
 
     history = FileHistory(str(HISTORY_FILE))
+    key_bindings = _create_key_bindings()
     session: PromptSession[str] = PromptSession(
         history=history,
         completer=completer,
         complete_while_typing=False,
+        key_bindings=key_bindings,
     )
 
     while True:
